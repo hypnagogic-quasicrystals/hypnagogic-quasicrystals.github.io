@@ -31,6 +31,7 @@ var MAX_LAYERS = 128,
     overlayUniforms = {},
     overlayAttributes = {},
     guiControllers = [],
+    linkButtonController,
     controls = {
         layers: 7,
         tempo: 0.1,
@@ -41,6 +42,17 @@ var MAX_LAYERS = 128,
         distance: 2.4,
         scale: 2.8
     };
+
+var controlParamDefs = [
+    { key: 'layers', min: 1, max: 100, step: 1, decimals: 0 },
+    { key: 'tempo', min: 0.01, max: 0.5, step: 0.01, decimals: 2 },
+    { key: 'dimPix', min: 0.05, max: 2, step: 0.05, decimals: 2 },
+    { key: 'coloring', values: ['Grayscale', 'Spectrum'] },
+    { key: 'angleMode', values: ['Evenly Spaced', 'Random'] },
+    { key: 'quality', min: 0.5, max: 1, step: 0.05, decimals: 2 },
+    { key: 'distance', min: 1.2, max: 4.5, step: 0.1, decimals: 1 },
+    { key: 'scale', min: 1.4, max: 5, step: 0.1, decimals: 1 }
+];
 
 var xrControlDefs = [
     { key: 'layers', label: 'Layers', min: 1, max: 100, step: 1, decimals: 0 },
@@ -101,6 +113,7 @@ async function init() {
 
     setupGeometry();
     setupXROverlay();
+    applyControlQueryParameters();
     setupGui();
     setupXR();
     syncParameters();
@@ -233,6 +246,10 @@ function setupGui() {
         return;
     }
 
+    var linkActions = {
+        createLink: createControlLink
+    };
+
     gui = new lil.GUI({ title: 'Parameters' });
     guiControllers.push(gui.add(controls, 'layers', 1, 100, 1).name('Layers').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'tempo', 0.01, 0.5, 0.01).name('Tempo').onChange(syncParameters));
@@ -240,6 +257,7 @@ function setupGui() {
     guiControllers.push(gui.add(controls, 'coloring', ['Grayscale', 'Spectrum']).name('Palette').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'angleMode', ['Evenly Spaced', 'Random']).name('Angle Mode').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'quality', 0.5, 1.0, 0.05).name('Render Scale').onChange(syncParameters));
+    linkButtonController = gui.add(linkActions, 'createLink').name('Create link');
 
     var referencesPanel = document.getElementById('references-panel');
 
@@ -268,6 +286,126 @@ function setupXR() {
         xrButton.disabled = true;
         setStatus('Could not check WebXR support');
     });
+}
+
+function applyControlQueryParameters() {
+    if (!window.URLSearchParams) {
+        return;
+    }
+
+    var params = new URLSearchParams(window.location.search);
+
+    for (var i = 0; i < controlParamDefs.length; i++) {
+        var definition = controlParamDefs[i];
+
+        if (!params.has(definition.key)) {
+            continue;
+        }
+
+        var parsedValue = parseControlParam(definition, params.get(definition.key));
+
+        if (parsedValue !== null) {
+            controls[definition.key] = parsedValue;
+        }
+    }
+}
+
+function parseControlParam(definition, rawValue) {
+    if (definition.values) {
+        return definition.values.indexOf(rawValue) !== -1 ? rawValue : null;
+    }
+
+    if (rawValue === null || rawValue.trim() === '') {
+        return null;
+    }
+
+    var value = Number(rawValue);
+
+    if (!Number.isFinite(value) || value < definition.min || value > definition.max) {
+        return null;
+    }
+
+    return roundControlValue(definition, value);
+}
+
+function createControlLink() {
+    var url = buildControlUrl();
+
+    copyText(url).then(function () {
+        setStatus('Link copied to clipboard');
+        flashLinkButton('Link copied');
+    }).catch(function () {
+        setStatus('Could not copy link');
+        flashLinkButton('Copy failed');
+    });
+}
+
+function buildControlUrl() {
+    var url = new URL(window.location.href);
+
+    for (var i = 0; i < controlParamDefs.length; i++) {
+        var definition = controlParamDefs[i];
+        var value = controls[definition.key];
+
+        if (!definition.values) {
+            value = formatControlParam(definition, value);
+        }
+
+        url.searchParams.set(definition.key, value);
+    }
+
+    return url.toString();
+}
+
+function formatControlParam(definition, value) {
+    return roundControlValue(definition, value).toFixed(definition.decimals || 0);
+}
+
+function roundControlValue(definition, value) {
+    var precision = Math.pow(10, definition.decimals || 0);
+
+    return Math.round(value * precision) / precision;
+}
+
+function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+
+    return new Promise(function (resolve, reject) {
+        var input = document.createElement('input');
+
+        input.value = text;
+        input.setAttribute('readonly', '');
+        input.style.position = 'fixed';
+        input.style.left = '-9999px';
+        document.body.appendChild(input);
+        input.select();
+
+        try {
+            if (document.execCommand('copy')) {
+                resolve();
+            } else {
+                reject(new Error('Copy command was not available'));
+            }
+        } catch (error) {
+            reject(error);
+        } finally {
+            document.body.removeChild(input);
+        }
+    });
+}
+
+function flashLinkButton(label) {
+    if (!linkButtonController) {
+        return;
+    }
+
+    linkButtonController.name(label);
+
+    window.setTimeout(function () {
+        linkButtonController.name('Create link');
+    }, 1400);
 }
 
 function syncParameters() {
@@ -321,11 +459,10 @@ function adjustSelectedXRControl(direction) {
 
         controls[definition.key] = definition.values[nextIndex];
     } else {
-        var precision = Math.pow(10, definition.decimals || 0);
         var nextValue = currentValue + definition.step * direction;
 
         nextValue = Math.max(definition.min, Math.min(definition.max, nextValue));
-        controls[definition.key] = Math.round(nextValue * precision) / precision;
+        controls[definition.key] = roundControlValue(definition, nextValue);
     }
 
     syncParameters();
