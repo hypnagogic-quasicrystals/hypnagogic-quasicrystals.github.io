@@ -15,11 +15,13 @@ uniform int uXRMode;
 uniform vec2 uDirections[MAX_LAYERS];
 
 void main() {
-    vec2 centered = (vTexCoord - 0.5) * uResolution * uDimPix;
+    vec2 screenCoord = vec2(gl_FragCoord.x, uResolution.y - gl_FragCoord.y);
+    vec2 screenUv = screenCoord / max(uResolution, vec2(1.0));
+    vec2 centered = (screenUv - 0.5) * uResolution * uDimPix;
     vec3 sphereDirection = normalize(vDirection);
 
     if (uGeometry == 2 && uXRMode == 0) {
-        vec2 screen = vTexCoord * 2.0 - 1.0;
+        vec2 screen = screenUv * 2.0 - 1.0;
         float aspect = uResolution.x / max(uResolution.y, 1.0);
         float fov = radians(90.0);
         float focalLength = 1.0 / tan(fov * 0.5);

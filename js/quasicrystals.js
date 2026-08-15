@@ -105,6 +105,10 @@ async function init() {
     setupXR();
     syncParameters();
     window.addEventListener('resize', resizeRenderer);
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', resizeRenderer);
+        window.visualViewport.addEventListener('scroll', resizeRenderer);
+    }
     resizeRenderer();
     startDesktopLoop();
 }
@@ -371,15 +375,43 @@ function resizeRenderer() {
         return;
     }
 
-    var renderWidth = Math.max(1, Math.floor(window.innerWidth * controls.quality));
-    var renderHeight = Math.max(1, Math.floor(window.innerHeight * controls.quality));
-    var supportsDynamicViewport = window.CSS && CSS.supports('height', '100dvh');
+    var viewport = getViewportSize();
+    var renderWidth = Math.max(1, Math.floor(viewport.width * controls.quality));
+    var renderHeight = Math.max(1, Math.floor(viewport.height * controls.quality));
+    var styleWidth = viewport.width + 'px';
+    var styleHeight = viewport.height + 'px';
 
-    canvas.width = renderWidth;
-    canvas.height = renderHeight;
-    canvas.style.width = supportsDynamicViewport ? '100dvw' : '100vw';
-    canvas.style.height = supportsDynamicViewport ? '100dvh' : '100vh';
+    if (canvas.width !== renderWidth) {
+        canvas.width = renderWidth;
+    }
+
+    if (canvas.height !== renderHeight) {
+        canvas.height = renderHeight;
+    }
+
+    if (canvas.style.width !== styleWidth) {
+        canvas.style.width = styleWidth;
+    }
+
+    if (canvas.style.height !== styleHeight) {
+        canvas.style.height = styleHeight;
+    }
+
     gl.viewport(0, 0, renderWidth, renderHeight);
+}
+
+function getViewportSize() {
+    if (window.visualViewport) {
+        return {
+            width: window.visualViewport.width,
+            height: window.visualViewport.height
+        };
+    }
+
+    return {
+        width: window.innerWidth,
+        height: window.innerHeight
+    };
 }
 
 function startDesktopLoop() {
