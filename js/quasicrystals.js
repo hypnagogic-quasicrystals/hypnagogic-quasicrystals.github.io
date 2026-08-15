@@ -26,11 +26,15 @@ var MAX_LAYERS = 128,
     overlayDirty = true,
     desktopFrameId = 0,
     startTime = performance.now(),
+    paused = false,
+    pausedAt = 0,
+    totalPausedTime = 0,
     uniforms = {},
     attributes = {},
     overlayUniforms = {},
     overlayAttributes = {},
     guiControllers = [],
+    pauseButtonController,
     linkButtonController,
     controls = {
         layers: 7,
@@ -247,6 +251,7 @@ function setupGui() {
     }
 
     var linkActions = {
+        togglePaused: togglePaused,
         createLink: createControlLink
     };
 
@@ -257,6 +262,7 @@ function setupGui() {
     guiControllers.push(gui.add(controls, 'coloring', ['Grayscale', 'Spectrum']).name('Palette').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'angleMode', ['Evenly Spaced', 'Random']).name('Angle Mode').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'quality', 0.5, 1.0, 0.05).name('Render Scale').onChange(syncParameters));
+    pauseButtonController = gui.add(linkActions, 'togglePaused').name('Pause');
     linkButtonController = gui.add(linkActions, 'createLink').name('Create link');
 
     var referencesPanel = document.getElementById('references-panel');
@@ -408,6 +414,32 @@ function flashLinkButton(label) {
     }, 1400);
 }
 
+function togglePaused() {
+    if (xrSession) {
+        return;
+    }
+
+    if (paused) {
+        totalPausedTime += performance.now() - pausedAt;
+        paused = false;
+        updatePauseButtonLabel();
+        startDesktopLoop();
+        return;
+    }
+
+    pausedAt = performance.now();
+    paused = true;
+    updatePauseButtonLabel();
+    stopDesktopLoop();
+    drawPausedDesktopFrame();
+}
+
+function updatePauseButtonLabel() {
+    if (pauseButtonController) {
+        pauseButtonController.name(paused ? 'Resume' : 'Pause');
+    }
+}
+
 function syncParameters() {
     layers = controls.layers;
     tempoFactor = controls.tempo;
@@ -535,6 +567,10 @@ function resizeRenderer() {
     }
 
     gl.viewport(0, 0, renderWidth, renderHeight);
+
+    if (paused) {
+        drawPausedDesktopFrame();
+    }
 }
 
 function getViewportSize() {
@@ -552,7 +588,7 @@ function getViewportSize() {
 }
 
 function startDesktopLoop() {
-    if (!desktopFrameId) {
+    if (!desktopFrameId && !paused) {
         desktopFrameId = window.requestAnimationFrame(drawDesktopFrame);
     }
 }
@@ -565,8 +601,20 @@ function stopDesktopLoop() {
 }
 
 function drawDesktopFrame(time) {
-    renderView(0, 0, canvas.width, canvas.height, IDENTITY_MATRIX, time);
+    renderView(0, 0, canvas.width, canvas.height, IDENTITY_MATRIX, getDesktopAnimationTime(time));
     desktopFrameId = window.requestAnimationFrame(drawDesktopFrame);
+}
+
+function drawPausedDesktopFrame() {
+    if (!canvas || xrSession) {
+        return;
+    }
+
+    renderView(0, 0, canvas.width, canvas.height, IDENTITY_MATRIX, getDesktopAnimationTime(pausedAt));
+}
+
+function getDesktopAnimationTime(time) {
+    return time - totalPausedTime;
 }
 
 async function toggleXR() {
