@@ -26,8 +26,8 @@ var MAX_LAYERS = 128,
     overlayDirty = true,
     desktopFrameId = 0,
     startTime = performance.now(),
-    paused = false,
-    pausedAt = 0,
+    paused = true,
+    pausedAt = startTime,
     totalPausedTime = 0,
     uniforms = {},
     attributes = {},
@@ -38,8 +38,8 @@ var MAX_LAYERS = 128,
     linkButtonController,
     controls = {
         layers: 7,
-        tempo: 0.1,
-        dimPix: 0.4,
+        tempo: 0.03,
+        dimPix: 0.15,
         coloring: 'Grayscale',
         angleMode: 'Evenly Spaced',
         quality: 1,
@@ -119,6 +119,7 @@ async function init() {
     setupXROverlay();
     applyControlQueryParameters();
     setupGui();
+    setupPhotosensitiveWarning();
     setupXR();
     syncParameters();
     window.addEventListener('resize', resizeRenderer);
@@ -128,6 +129,37 @@ async function init() {
     }
     resizeRenderer();
     startDesktopLoop();
+}
+
+function setupPhotosensitiveWarning() {
+    var dialog = document.getElementById('photosensitive-warning');
+    var button = document.getElementById('photosensitive-warning-button');
+
+    if (!dialog || !button) {
+        return;
+    }
+
+    button.addEventListener('click', acceptPhotosensitiveWarning);
+
+    if (dialog.showModal) {
+        dialog.showModal();
+    } else {
+        dialog.setAttribute('open', '');
+    }
+}
+
+function acceptPhotosensitiveWarning() {
+    var dialog = document.getElementById('photosensitive-warning');
+
+    if (dialog && dialog.close) {
+        dialog.close();
+    } else if (dialog) {
+        dialog.removeAttribute('open');
+    }
+
+    if (paused) {
+        togglePaused();
+    }
 }
 
 async function fetchText(url) {
@@ -263,6 +295,7 @@ function setupGui() {
     guiControllers.push(gui.add(controls, 'angleMode', ['Evenly Spaced', 'Random']).name('Angle Mode').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'quality', 0.5, 1.0, 0.05).name('Render Scale').onChange(syncParameters));
     pauseButtonController = gui.add(linkActions, 'togglePaused').name('Pause');
+    updatePauseButtonLabel();
     linkButtonController = gui.add(linkActions, 'createLink').name('Create link');
 
     var referencesPanel = document.getElementById('references-panel');

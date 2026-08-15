@@ -6,13 +6,28 @@
     <meta name="author" content="r34117y">
     <link rel="stylesheet" href="css/quasicrystals.css?v=20260815">
     <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.20/dist/lil-gui.umd.min.js"></script>
-    <script src="js/quasicrystals.js?v=20260815-android-viewport" defer></script>
+    <script src="js/quasicrystals.js?v=20260815-photosensitive-warning" defer></script>
     <title>Hypnagogic Quasicrystals</title>
 </head>
 <body>
 <div id="sketch">
     <canvas id="quasicrystals-canvas"></canvas>
 </div>
+<dialog class="warning-modal" id="photosensitive-warning" aria-labelledby="photosensitive-warning-title">
+    <form class="warning-modal__content" method="dialog">
+        <h1 class="warning-modal__title" id="photosensitive-warning-title">Photosensitive Seizure Warning</h1>
+        <p>
+            This website contains animated visual patterns, high-contrast imagery, and motion effects that may trigger
+            seizures or discomfort in people with photosensitive epilepsy or other visual sensitivities.
+        </p>
+        <p>
+            Viewer discretion is advised. If you experience dizziness, altered vision, eye or muscle twitching, loss of
+            awareness, disorientation, involuntary movement, or convulsions, stop viewing immediately and consult a
+            medical professional.
+        </p>
+        <button class="warning-modal__button" id="photosensitive-warning-button" type="button">I understand</button>
+    </form>
+</dialog>
 <div class="xr-panel" id="xr-panel">
     <div class="xr-panel__actions">
         <button class="xr-button" id="xr-button" type="button" disabled>Enter VR</button>
