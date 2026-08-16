@@ -1,4 +1,4 @@
-var MAX_LAYERS = 128,
+let MAX_LAYERS = 128,
     dimPix = 0.4,
     layers = 7,
     tempoFactor = 0.1,
@@ -47,7 +47,7 @@ var MAX_LAYERS = 128,
         scale: 2.8
     };
 
-var controlParamDefs = [
+let controlParamDefs = [
     { key: 'layers', min: 1, max: 100, step: 1, decimals: 0 },
     { key: 'tempo', min: 0.01, max: 0.5, step: 0.01, decimals: 2 },
     { key: 'dimPix', min: 0.05, max: 2, step: 0.05, decimals: 2 },
@@ -58,7 +58,7 @@ var controlParamDefs = [
     { key: 'scale', min: 1.4, max: 5, step: 0.1, decimals: 1 }
 ];
 
-var xrControlDefs = [
+let xrControlDefs = [
     { key: 'layers', label: 'Layers', min: 1, max: 100, step: 1, decimals: 0 },
     { key: 'tempo', label: 'Tempo', min: 0.01, max: 0.5, step: 0.01, decimals: 2 },
     { key: 'dimPix', label: 'Density', min: 0.05, max: 2, step: 0.05, decimals: 2 },
@@ -68,9 +68,9 @@ var xrControlDefs = [
     { key: 'scale', label: 'Scale', min: 1.4, max: 5, step: 0.1, decimals: 1 }
 ];
 
-var previousAngleMode = controls.angleMode;
+let previousAngleMode = controls.angleMode;
 
-var IDENTITY_MATRIX = new Float32Array([
+let IDENTITY_MATRIX = new Float32Array([
     1, 0, 0, 0,
     0, 1, 0, 0,
     0, 0, 1, 0,
@@ -89,7 +89,7 @@ async function init() {
     }
 
     try {
-        var shaderSources = await Promise.all([
+        let shaderSources = await Promise.all([
             fetchText('js/quasicrystals.vert'),
             fetchText('js/quasicrystals.frag'),
             fetchText('js/xr-controls.vert'),
@@ -132,8 +132,8 @@ async function init() {
 }
 
 function setupPhotosensitiveWarning() {
-    var dialog = document.getElementById('photosensitive-warning');
-    var button = document.getElementById('photosensitive-warning-button');
+    let dialog = document.getElementById('photosensitive-warning');
+    let button = document.getElementById('photosensitive-warning-button');
 
     if (!dialog || !button) {
         return;
@@ -149,7 +149,7 @@ function setupPhotosensitiveWarning() {
 }
 
 function acceptPhotosensitiveWarning() {
-    var dialog = document.getElementById('photosensitive-warning');
+    let dialog = document.getElementById('photosensitive-warning');
 
     if (dialog && dialog.close) {
         dialog.close();
@@ -163,7 +163,7 @@ function acceptPhotosensitiveWarning() {
 }
 
 async function fetchText(url) {
-    var response = await fetch(url);
+    let response = await fetch(url);
 
     if (!response.ok) {
         throw new Error('Could not load ' + url);
@@ -173,9 +173,9 @@ async function fetchText(url) {
 }
 
 function createProgram(vertexSource, fragmentSource) {
-    var vertexShader = compileShader(gl.VERTEX_SHADER, vertexSource);
-    var fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentSource);
-    var shaderProgram = gl.createProgram();
+    let vertexShader = compileShader(gl.VERTEX_SHADER, vertexSource);
+    let fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentSource);
+    let shaderProgram = gl.createProgram();
 
     gl.attachShader(shaderProgram, vertexShader);
     gl.attachShader(shaderProgram, fragmentShader);
@@ -189,7 +189,7 @@ function createProgram(vertexSource, fragmentSource) {
 }
 
 function compileShader(type, source) {
-    var shader = gl.createShader(type);
+    let shader = gl.createShader(type);
 
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
@@ -213,7 +213,7 @@ function setupGeometry() {
         1, 1, 0, 1, 1
     ]), gl.STATIC_DRAW);
 
-    var sphereData = createSphereGeometry(64, 32);
+    let sphereData = createSphereGeometry(64, 32);
 
     sphereVertexCount = sphereData.length / 5;
     sphereBuffer = gl.createBuffer();
@@ -222,19 +222,19 @@ function setupGeometry() {
 }
 
 function createSphereGeometry(longitudeSegments, latitudeSegments) {
-    var vertices = [];
+    let vertices = [];
 
-    for (var lat = 0; lat < latitudeSegments; lat++) {
-        var v0 = lat / latitudeSegments;
-        var v1 = (lat + 1) / latitudeSegments;
-        var theta0 = v0 * Math.PI;
-        var theta1 = v1 * Math.PI;
+    for (let lat = 0; lat < latitudeSegments; lat++) {
+        let v0 = lat / latitudeSegments;
+        let v1 = (lat + 1) / latitudeSegments;
+        let theta0 = v0 * Math.PI;
+        let theta1 = v1 * Math.PI;
 
-        for (var lon = 0; lon < longitudeSegments; lon++) {
-            var u0 = lon / longitudeSegments;
-            var u1 = (lon + 1) / longitudeSegments;
-            var phi0 = u0 * Math.PI * 2;
-            var phi1 = u1 * Math.PI * 2;
+        for (let lon = 0; lon < longitudeSegments; lon++) {
+            let u0 = lon / longitudeSegments;
+            let u1 = (lon + 1) / longitudeSegments;
+            let phi0 = u0 * Math.PI * 2;
+            let phi1 = u1 * Math.PI * 2;
 
             pushSphereVertex(vertices, theta0, phi0, u0, v0);
             pushSphereVertex(vertices, theta1, phi0, u0, v1);
@@ -249,10 +249,10 @@ function createSphereGeometry(longitudeSegments, latitudeSegments) {
 }
 
 function pushSphereVertex(vertices, theta, phi, u, v) {
-    var sinTheta = Math.sin(theta);
-    var x = sinTheta * Math.sin(phi);
-    var y = Math.cos(theta);
-    var z = sinTheta * Math.cos(phi);
+    let sinTheta = Math.sin(theta);
+    let x = sinTheta * Math.sin(phi);
+    let y = Math.cos(theta);
+    let z = sinTheta * Math.cos(phi);
 
     vertices.push(x, y, z, u, v);
 }
@@ -282,7 +282,7 @@ function setupGui() {
         return;
     }
 
-    var linkActions = {
+    let linkActions = {
         togglePaused: togglePaused,
         createLink: createControlLink
     };
@@ -298,7 +298,7 @@ function setupGui() {
     updatePauseButtonLabel();
     linkButtonController = gui.add(linkActions, 'createLink').name('Create link');
 
-    var referencesPanel = document.getElementById('references-panel');
+    let referencesPanel = document.getElementById('references-panel');
 
     if (referencesPanel) {
         referencesPanel.classList.add('is-mounted');
@@ -307,8 +307,8 @@ function setupGui() {
 }
 
 function setupXR() {
-    var xrButton = document.getElementById('xr-button');
-    var xrCloseButton = document.getElementById('xr-close-button');
+    let xrButton = document.getElementById('xr-button');
+    let xrCloseButton = document.getElementById('xr-close-button');
 
     xrButton.addEventListener('click', toggleXR);
     xrCloseButton.addEventListener('click', closeXRPanel);
@@ -332,16 +332,16 @@ function applyControlQueryParameters() {
         return;
     }
 
-    var params = new URLSearchParams(window.location.search);
+    let params = new URLSearchParams(window.location.search);
 
-    for (var i = 0; i < controlParamDefs.length; i++) {
-        var definition = controlParamDefs[i];
+    for (let i = 0; i < controlParamDefs.length; i++) {
+        let definition = controlParamDefs[i];
 
         if (!params.has(definition.key)) {
             continue;
         }
 
-        var parsedValue = parseControlParam(definition, params.get(definition.key));
+        let parsedValue = parseControlParam(definition, params.get(definition.key));
 
         if (parsedValue !== null) {
             controls[definition.key] = parsedValue;
@@ -358,7 +358,7 @@ function parseControlParam(definition, rawValue) {
         return null;
     }
 
-    var value = Number(rawValue);
+    let value = Number(rawValue);
 
     if (!Number.isFinite(value) || value < definition.min || value > definition.max) {
         return null;
@@ -368,7 +368,7 @@ function parseControlParam(definition, rawValue) {
 }
 
 function createControlLink() {
-    var url = buildControlUrl();
+    let url = buildControlUrl();
 
     copyText(url).then(function () {
         setStatus('Link copied to clipboard');
@@ -380,11 +380,11 @@ function createControlLink() {
 }
 
 function buildControlUrl() {
-    var url = new URL(window.location.href);
+    let url = new URL(window.location.href);
 
-    for (var i = 0; i < controlParamDefs.length; i++) {
-        var definition = controlParamDefs[i];
-        var value = controls[definition.key];
+    for (let i = 0; i < controlParamDefs.length; i++) {
+        let definition = controlParamDefs[i];
+        let value = controls[definition.key];
 
         if (!definition.values) {
             value = formatControlParam(definition, value);
@@ -401,7 +401,7 @@ function formatControlParam(definition, value) {
 }
 
 function roundControlValue(definition, value) {
-    var precision = Math.pow(10, definition.decimals || 0);
+    let precision = Math.pow(10, definition.decimals || 0);
 
     return Math.round(value * precision) / precision;
 }
@@ -412,7 +412,7 @@ function copyText(text) {
     }
 
     return new Promise(function (resolve, reject) {
-        var input = document.createElement('input');
+        let input = document.createElement('input');
 
         input.value = text;
         input.setAttribute('readonly', '');
@@ -493,7 +493,7 @@ function syncParameters() {
 }
 
 function refreshGui() {
-    for (var i = 0; i < guiControllers.length; i++) {
+    for (let i = 0; i < guiControllers.length; i++) {
         guiControllers[i].updateDisplay();
     }
 }
@@ -509,12 +509,12 @@ function selectPreviousXRControl() {
 }
 
 function adjustSelectedXRControl(direction) {
-    var definition = xrControlDefs[xrSelectedControl];
-    var currentValue = controls[definition.key];
+    let definition = xrControlDefs[xrSelectedControl];
+    let currentValue = controls[definition.key];
 
     if (definition.values) {
-        var currentIndex = definition.values.indexOf(currentValue);
-        var nextIndex = currentIndex + direction;
+        let currentIndex = definition.values.indexOf(currentValue);
+        let nextIndex = currentIndex + direction;
 
         if (nextIndex < 0) {
             nextIndex = definition.values.length - 1;
@@ -524,7 +524,7 @@ function adjustSelectedXRControl(direction) {
 
         controls[definition.key] = definition.values[nextIndex];
     } else {
-        var nextValue = currentValue + definition.step * direction;
+        let nextValue = currentValue + definition.step * direction;
 
         nextValue = Math.max(definition.min, Math.min(definition.max, nextValue));
         controls[definition.key] = roundControlValue(definition, nextValue);
@@ -535,7 +535,7 @@ function adjustSelectedXRControl(direction) {
 }
 
 function formatXRControlValue(definition) {
-    var value = controls[definition.key];
+    let value = controls[definition.key];
 
     if (definition.values) {
         return value;
@@ -547,21 +547,21 @@ function formatXRControlValue(definition) {
 function rebuildRandomAngles() {
     randomAngles = [];
 
-    for (var i = 0; i < MAX_LAYERS; i++) {
+    for (let i = 0; i < MAX_LAYERS; i++) {
         randomAngles.push(Math.random() * Math.PI);
     }
 }
 
 function rebuildLayerDirections() {
-    var orientationDelta = Math.PI / layers;
+    let orientationDelta = Math.PI / layers;
 
     if (controls.angleMode === 'Random' && randomAngles.length < MAX_LAYERS) {
         rebuildRandomAngles();
     }
 
-    for (var i = 0; i < MAX_LAYERS; i++) {
+    for (let i = 0; i < MAX_LAYERS; i++) {
         if (i < layers) {
-            var orientation = controls.angleMode === 'Random' ? randomAngles[i] : i * orientationDelta;
+            let orientation = controls.angleMode === 'Random' ? randomAngles[i] : i * orientationDelta;
 
             directionVectors[i * 2] = Math.cos(orientation);
             directionVectors[i * 2 + 1] = Math.sin(orientation);
@@ -577,11 +577,11 @@ function resizeRenderer() {
         return;
     }
 
-    var viewport = getViewportSize();
-    var renderWidth = Math.max(1, Math.floor(viewport.width * controls.quality));
-    var renderHeight = Math.max(1, Math.floor(viewport.height * controls.quality));
-    var styleWidth = viewport.width + 'px';
-    var styleHeight = viewport.height + 'px';
+    let viewport = getViewportSize();
+    let renderWidth = Math.max(1, Math.floor(viewport.width * controls.quality));
+    let renderHeight = Math.max(1, Math.floor(viewport.height * controls.quality));
+    let styleWidth = viewport.width + 'px';
+    let styleHeight = viewport.height + 'px';
 
     if (canvas.width !== renderWidth) {
         canvas.width = renderWidth;
@@ -657,7 +657,7 @@ async function toggleXR() {
     }
 
     try {
-        var session = await navigator.xr.requestSession('immersive-vr');
+        let session = await navigator.xr.requestSession('immersive-vr');
         await startXRSession(session);
     } catch (error) {
         setStatus('Could not enter VR');
@@ -706,8 +706,8 @@ function endXRSession() {
 }
 
 function drawXRFrame(time, frame) {
-    var session = frame.session;
-    var pose = frame.getViewerPose(xrReferenceSpace);
+    let session = frame.session;
+    let pose = frame.getViewerPose(xrReferenceSpace);
 
     session.requestAnimationFrame(drawXRFrame);
     pollXRInput(session, time);
@@ -716,19 +716,19 @@ function drawXRFrame(time, frame) {
         return;
     }
 
-    var layer = session.renderState.baseLayer;
+    let layer = session.renderState.baseLayer;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
 
-    for (var i = 0; i < pose.views.length; i++) {
-        var view = pose.views[i];
-        var viewport = layer.getViewport(view);
-        var model = createSphereModelMatrix(controls.distance);
-        var viewModel = multiplyMatrix(view.transform.inverse.matrix, model);
-        var mvp = multiplyMatrix(view.projectionMatrix, viewModel);
-        var panelModel = multiplyMatrix(pose.transform.matrix, createPanelMatrix());
-        var panelViewModel = multiplyMatrix(view.transform.inverse.matrix, panelModel);
-        var panelMvp = multiplyMatrix(view.projectionMatrix, panelViewModel);
+    for (let i = 0; i < pose.views.length; i++) {
+        let view = pose.views[i];
+        let viewport = layer.getViewport(view);
+        let model = createSphereModelMatrix(controls.distance);
+        let viewModel = multiplyMatrix(view.transform.inverse.matrix, model);
+        let mvp = multiplyMatrix(view.projectionMatrix, viewModel);
+        let panelModel = multiplyMatrix(pose.transform.matrix, createPanelMatrix());
+        let panelViewModel = multiplyMatrix(view.transform.inverse.matrix, panelModel);
+        let panelMvp = multiplyMatrix(view.projectionMatrix, panelViewModel);
 
         renderView(viewport.x, viewport.y, viewport.width, viewport.height, mvp, time, true);
 
@@ -741,18 +741,18 @@ function drawXRFrame(time, frame) {
 }
 
 function pollXRInput(session, time) {
-    var axis = 0;
-    var togglePressed = false;
+    let axis = 0;
+    let togglePressed = false;
 
-    for (var sourceIndex = 0; sourceIndex < session.inputSources.length; sourceIndex++) {
-        var source = session.inputSources[sourceIndex];
+    for (let sourceIndex = 0; sourceIndex < session.inputSources.length; sourceIndex++) {
+        let source = session.inputSources[sourceIndex];
 
         if (!source.gamepad) {
             continue;
         }
 
         if (source.gamepad.axes) {
-            for (var i = 0; i < source.gamepad.axes.length; i++) {
+            for (let i = 0; i < source.gamepad.axes.length; i++) {
                 if (Math.abs(source.gamepad.axes[i]) > Math.abs(axis)) {
                     axis = source.gamepad.axes[i];
                 }
@@ -760,7 +760,7 @@ function pollXRInput(session, time) {
         }
 
         if (source.gamepad.buttons) {
-            for (var buttonIndex = 2; buttonIndex < source.gamepad.buttons.length; buttonIndex++) {
+            for (let buttonIndex = 2; buttonIndex < source.gamepad.buttons.length; buttonIndex++) {
                 if (source.gamepad.buttons[buttonIndex].pressed) {
                     togglePressed = true;
                 }
@@ -787,15 +787,6 @@ function toggleXRControls() {
     overlayDirty = true;
 }
 
-function createModelMatrix(scale, distance) {
-    return new Float32Array([
-        scale, 0, 0, 0,
-        0, scale, 0, 0,
-        0, 0, scale, 0,
-        0, 0, -distance, 1
-    ]);
-}
-
 function createSphereModelMatrix(radius) {
     return new Float32Array([
         radius, 0, 0, 0,
@@ -815,13 +806,13 @@ function createPanelMatrix() {
 }
 
 function multiplyMatrix(a, b) {
-    var result = new Float32Array(16);
+    let result = new Float32Array(16);
 
-    for (var column = 0; column < 4; column++) {
-        for (var row = 0; row < 4; row++) {
+    for (let column = 0; column < 4; column++) {
+        for (let row = 0; row < 4; row++) {
             result[column * 4 + row] =
-                a[0 * 4 + row] * b[column * 4 + 0] +
-                a[1 * 4 + row] * b[column * 4 + 1] +
+                a[row] * b[column * 4] +
+                a[4 + row] * b[column * 4 + 1] +
                 a[2 * 4 + row] * b[column * 4 + 2] +
                 a[3 * 4 + row] * b[column * 4 + 3];
         }
@@ -831,8 +822,8 @@ function multiplyMatrix(a, b) {
 }
 
 function renderView(x, y, width, height, mvp, time, xrSphere) {
-    var buffer = xrSphere ? sphereBuffer : vertexBuffer;
-    var vertexCount = xrSphere ? sphereVertexCount : 6;
+    let buffer = xrSphere ? sphereBuffer : vertexBuffer;
+    let vertexCount = xrSphere ? sphereVertexCount : 6;
 
     gl.viewport(x, y, width, height);
     gl.enable(gl.SCISSOR_TEST);
@@ -894,9 +885,9 @@ function renderXROverlay(x, y, width, height, mvp) {
 }
 
 function updateXROverlayTexture() {
-    var context = overlayContext;
-    var width = overlayCanvas.width;
-    var height = overlayCanvas.height;
+    let context = overlayContext;
+    let width = overlayCanvas.width;
+    let height = overlayCanvas.height;
 
     context.clearRect(0, 0, width, height);
     context.fillStyle = 'rgba(2, 6, 23, 0.58)';
@@ -915,7 +906,7 @@ function updateXROverlayTexture() {
     context.fillText('Trigger: next   Grip: previous   Stick/pad: adjust', 30, 76);
     context.fillText('A/B/menu/stick press: hide/show panel', 30, 104);
 
-    for (var i = 0; i < xrControlDefs.length; i++) {
+    for (let i = 0; i < xrControlDefs.length; i++) {
         drawXRControlRow(context, xrControlDefs[i], i);
     }
 
@@ -927,8 +918,8 @@ function updateXROverlayTexture() {
 }
 
 function drawXRControlRow(context, definition, index) {
-    var rowTop = 138 + index * 43;
-    var selected = index === xrSelectedControl;
+    let rowTop = 138 + index * 43;
+    let selected = index === xrSelectedControl;
 
     if (selected) {
         context.fillStyle = 'rgba(96, 165, 250, 0.28)';
@@ -964,7 +955,7 @@ function roundRect(context, x, y, width, height, radius) {
 }
 
 function setStatus(message) {
-    var status = document.getElementById('xr-status');
+    let status = document.getElementById('xr-status');
 
     if (status) {
         status.textContent = message;
