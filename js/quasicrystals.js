@@ -407,32 +407,11 @@ function roundControlValue(definition, value) {
 }
 
 function copyText(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text);
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        return Promise.reject(new Error('Clipboard API is not available'));
     }
 
-    return new Promise(function (resolve, reject) {
-        let input = document.createElement('input');
-
-        input.value = text;
-        input.setAttribute('readonly', '');
-        input.style.position = 'fixed';
-        input.style.left = '-9999px';
-        document.body.appendChild(input);
-        input.select();
-
-        try {
-            if (document.execCommand('copy')) {
-                resolve();
-            } else {
-                reject(new Error('Copy command was not available'));
-            }
-        } catch (error) {
-            reject(error);
-        } finally {
-            document.body.removeChild(input);
-        }
-    });
+    return navigator.clipboard.writeText(text);
 }
 
 function flashLinkButton(label) {
