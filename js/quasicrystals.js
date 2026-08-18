@@ -1,4 +1,6 @@
 let MAX_LAYERS = 128,
+    ANIMATION_STORAGE_VERSION = 1,
+    ANIMATION_STORAGE_KEY = 'hypnagogic-quasicrystals.animations',
     dimPix = 0.4,
     layers = 7,
     tempoFactor = 0.1,
@@ -21,6 +23,11 @@ let MAX_LAYERS = 128,
     customAngleCanvas,
     customAngleContext,
     customAngleDialog,
+    saveAnimationDialog,
+    saveAnimationForm,
+    saveAnimationNameInput,
+    loadAnimationDialog,
+    savedAnimationList,
     customAngleDragIndex = -1,
     customAngleEditorPending = false,
     initialSyncPending = true,
@@ -130,6 +137,7 @@ async function init() {
     applyControlQueryParameters();
     setupGui();
     setupCustomAngleEditor();
+    setupAnimationStorage();
     setupPhotosensitiveWarning();
     setupXR();
     syncParameters();
@@ -300,7 +308,9 @@ function setupGui() {
 
     let linkActions = {
         togglePaused: togglePaused,
-        createLink: createControlLink
+        createLink: createControlLink,
+        saveAnimation: openSaveAnimationDialog,
+        loadAnimation: openLoadAnimationDialog
     };
 
     gui = new lil.GUI({ title: 'Parameters' });
@@ -313,6 +323,8 @@ function setupGui() {
     pauseButtonController = gui.add(linkActions, 'togglePaused').name('Pause');
     updatePauseButtonLabel();
     linkButtonController = gui.add(linkActions, 'createLink').name('Create link');
+    gui.add(linkActions, 'saveAnimation').name('Save in browser storage');
+    gui.add(linkActions, 'loadAnimation').name('Load from browser storage');
 
     let referencesPanel = document.getElementById('references-panel');
 
@@ -342,6 +354,24 @@ function setupCustomAngleEditor() {
     drawCustomAngleEditor();
 }
 
+function setupAnimationStorage() {
+    saveAnimationDialog = document.getElementById('save-animation-modal');
+    saveAnimationForm = document.getElementById('save-animation-form');
+    saveAnimationNameInput = document.getElementById('save-animation-name');
+    loadAnimationDialog = document.getElementById('load-animation-modal');
+    savedAnimationList = document.getElementById('saved-animation-list');
+
+    if (saveAnimationForm) {
+        saveAnimationForm.addEventListener('submit', saveCurrentAnimation);
+    }
+
+    document.querySelectorAll('[data-close-modal]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            closeDialog(button.closest('dialog'));
+        });
+    });
+}
+
 function setupXR() {
     let xrButton = document.getElementById('xr-button');
     let xrCloseButton = document.getElementById('xr-close-button');
@@ -368,8 +398,10 @@ function applyControlQueryParameters() {
         return;
     }
 
-    let params = new URLSearchParams(window.location.search);
+    applyControlParams(new URLSearchParams(window.location.search));
+}
 
+function applyControlParams(params) {
     for (let i = 0; i < controlParamDefs.length; i++) {
         let definition = controlParamDefs[i];
 
@@ -437,6 +469,15 @@ function createControlLink() {
 
 function buildControlUrl() {
     let url = new URL(window.location.href);
+    let params = buildControlParams();
+
+    url.search = params.toString();
+
+    return url.toString();
+}
+
+function buildControlParams() {
+    let params = new URLSearchParams();
 
     for (let i = 0; i < controlParamDefs.length; i++) {
         let definition = controlParamDefs[i];
@@ -446,20 +487,331 @@ function buildControlUrl() {
             value = formatControlParam(definition, value);
         }
 
-        url.searchParams.set(definition.key, value);
+        params.set(definition.key, value);
     }
 
     if (controls.angleMode === 'Random') {
         ensureRandomAngles();
-        url.searchParams.set('angles', formatAngleList(randomAngles, controls.layers));
+        params.set('angles', formatAngleList(randomAngles, controls.layers));
     } else if (controls.angleMode === 'Custom') {
         ensureCustomAngles();
-        url.searchParams.set('angles', formatAngleList(customAngles, controls.layers));
-    } else {
-        url.searchParams.delete('angles');
+        params.set('angles', formatAngleList(customAngles, controls.layers));
     }
 
-    return url.toString();
+    return params;
+}
+
+function openSaveAnimationDialog() {
+    if (!saveAnimationDialog || !saveAnimationNameInput) {
+        setStatus('Save dialog is not available');
+        return;
+    }
+
+    saveAnimationNameInput.value = getNextAnimationName();
+
+    if (saveAnimationDialog.showModal) {
+        saveAnimationDialog.showModal();
+    } else {
+        saveAnimationDialog.setAttribute('open', '');
+    }
+
+    saveAnimationNameInput.focus();
+    saveAnimationNameInput.select();
+}
+
+function openLoadAnimationDialog() {
+    if (!loadAnimationDialog || !savedAnimationList) {
+        setStatus('Load dialog is not available');
+        return;
+    }
+
+    renderSavedAnimationList();
+
+    if (loadAnimationDialog.showModal) {
+        loadAnimationDialog.showModal();
+    } else {
+        loadAnimationDialog.setAttribute('open', '');
+    }
+}
+
+function saveCurrentAnimation(event) {
+    event.preventDefault();
+
+    let name = saveAnimationNameInput.value.trim();
+
+    if (name === '') {
+        saveAnimationNameInput.focus();
+        return;
+    }
+
+    let animations = readSavedAnimations();
+    let params = buildControlParams();
+
+    animations.push({
+        id: createStorageId(),
+        version: ANIMATION_STORAGE_VERSION,
+        name: name,
+        createdAt: new Date().toISOString(),
+        params: paramsToObject(params)
+    });
+
+    if (!writeSavedAnimations(animations)) {
+        return;
+    }
+
+    closeDialog(saveAnimationDialog);
+
+    setStatus('Animation saved in browser storage');
+}
+
+function renderSavedAnimationList() {
+    let animations = readSavedAnimations();
+
+    savedAnimationList.replaceChildren();
+
+    if (animations.length === 0) {
+        let empty = document.createElement('p');
+
+        empty.className = 'storage-modal__empty';
+        empty.textContent = 'No saved animations in this browser.';
+        savedAnimationList.appendChild(empty);
+        return;
+    }
+
+    animations.sort(function (a, b) {
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+
+    for (let i = 0; i < animations.length; i++) {
+        savedAnimationList.appendChild(createSavedAnimationRow(animations[i]));
+    }
+}
+
+function createSavedAnimationRow(animation) {
+    let row = document.createElement('div');
+    let details = document.createElement('div');
+    let title = document.createElement('p');
+    let meta = document.createElement('p');
+    let actions = document.createElement('div');
+    let loadButton = document.createElement('button');
+    let deleteButton = document.createElement('button');
+    let versionLabel = 'version ' + animation.version;
+
+    row.className = 'storage-modal__row';
+    title.className = 'storage-modal__row-title';
+    meta.className = 'storage-modal__meta';
+    actions.className = 'storage-modal__row-actions';
+    loadButton.className = 'storage-modal__button';
+    deleteButton.className = 'storage-modal__button storage-modal__button--danger';
+
+    title.textContent = animation.name || 'Untitled animation';
+
+    if (animation.version < ANIMATION_STORAGE_VERSION) {
+        versionLabel += ' ';
+        let warning = document.createElement('span');
+
+        warning.className = 'storage-modal__version-warning';
+        warning.textContent = '(older than current version ' + ANIMATION_STORAGE_VERSION + ')';
+        meta.textContent = formatStoredDate(animation.createdAt) + ' · ' + versionLabel;
+        meta.appendChild(warning);
+    } else if (animation.version > ANIMATION_STORAGE_VERSION) {
+        versionLabel += ' ';
+        let warning = document.createElement('span');
+
+        warning.className = 'storage-modal__version-warning';
+        warning.textContent = '(newer than current version ' + ANIMATION_STORAGE_VERSION + ')';
+        meta.textContent = formatStoredDate(animation.createdAt) + ' · ' + versionLabel;
+        meta.appendChild(warning);
+    } else {
+        meta.textContent = formatStoredDate(animation.createdAt) + ' · ' + versionLabel;
+    }
+
+    loadButton.type = 'button';
+    loadButton.textContent = 'Load';
+    loadButton.addEventListener('click', function () {
+        loadSavedAnimation(animation.id);
+    });
+
+    deleteButton.type = 'button';
+    deleteButton.textContent = 'Delete';
+    deleteButton.addEventListener('click', function () {
+        deleteSavedAnimation(animation.id);
+    });
+
+    details.appendChild(title);
+    details.appendChild(meta);
+    actions.appendChild(loadButton);
+    actions.appendChild(deleteButton);
+    row.appendChild(details);
+    row.appendChild(actions);
+
+    return row;
+}
+
+function loadSavedAnimation(id) {
+    let animation = findSavedAnimation(id);
+
+    if (!animation) {
+        setStatus('Saved animation was not found');
+        renderSavedAnimationList();
+        return;
+    }
+
+    applyControlParams(objectToParams(animation.params));
+    previousAngleMode = controls.angleMode;
+    previousLayerCount = controls.layers;
+    closeCustomAngleEditor();
+    syncParameters();
+    refreshGui();
+
+    closeDialog(loadAnimationDialog);
+
+    setStatus('Animation loaded from browser storage');
+}
+
+function deleteSavedAnimation(id) {
+    let animations = readSavedAnimations().filter(function (animation) {
+        return animation.id !== id;
+    });
+
+    if (writeSavedAnimations(animations)) {
+        renderSavedAnimationList();
+        setStatus('Saved animation deleted');
+    }
+}
+
+function findSavedAnimation(id) {
+    let animations = readSavedAnimations();
+
+    for (let i = 0; i < animations.length; i++) {
+        if (animations[i].id === id) {
+            return animations[i];
+        }
+    }
+
+    return null;
+}
+
+function getNextAnimationName() {
+    let animations = readSavedAnimations();
+    let usedNumbers = {};
+
+    for (let i = 0; i < animations.length; i++) {
+        let match = /^Animation ([1-9][0-9]*)$/.exec(animations[i].name || '');
+
+        if (match) {
+            usedNumbers[Number(match[1])] = true;
+        }
+    }
+
+    for (let number = 1; number < 10000; number++) {
+        if (!usedNumbers[number]) {
+            return 'Animation ' + number;
+        }
+    }
+
+    return 'Animation ' + (animations.length + 1);
+}
+
+function readSavedAnimations() {
+    try {
+        if (!window.localStorage) {
+            return [];
+        }
+
+        let rawValue = window.localStorage.getItem(ANIMATION_STORAGE_KEY);
+        let parsed = rawValue ? JSON.parse(rawValue) : [];
+
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed.filter(isValidSavedAnimation);
+    } catch (error) {
+        setStatus('Could not read browser storage');
+        return [];
+    }
+}
+
+function writeSavedAnimations(animations) {
+    try {
+        if (!window.localStorage) {
+            setStatus('Browser storage is not available');
+            return false;
+        }
+
+        window.localStorage.setItem(ANIMATION_STORAGE_KEY, JSON.stringify(animations));
+        return true;
+    } catch (error) {
+        setStatus('Could not write browser storage');
+        return false;
+    }
+}
+
+function isValidSavedAnimation(animation) {
+    return animation &&
+        typeof animation.id === 'string' &&
+        typeof animation.name === 'string' &&
+        typeof animation.createdAt === 'string' &&
+        typeof animation.version === 'number' &&
+        animation.params &&
+        typeof animation.params === 'object';
+}
+
+function createStorageId() {
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function paramsToObject(params) {
+    let object = {};
+
+    params.forEach(function (value, key) {
+        object[key] = value;
+    });
+
+    return object;
+}
+
+function objectToParams(object) {
+    let params = new URLSearchParams();
+
+    if (!object || typeof object !== 'object') {
+        return params;
+    }
+
+    Object.keys(object).forEach(function (key) {
+        params.set(key, String(object[key]));
+    });
+
+    return params;
+}
+
+function formatStoredDate(value) {
+    let date = new Date(value);
+
+    if (!Number.isFinite(date.getTime())) {
+        return 'Unknown date';
+    }
+
+    return date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function closeDialog(dialog) {
+    if (!dialog) {
+        return;
+    }
+
+    if (dialog.close) {
+        dialog.close();
+    } else {
+        dialog.removeAttribute('open');
+    }
 }
 
 function parseAngleList(rawValue) {

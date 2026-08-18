@@ -46,6 +46,34 @@
         </div>
     </form>
 </dialog>
+<dialog class="storage-modal" id="save-animation-modal" aria-labelledby="save-animation-title">
+    <form class="storage-modal__content" id="save-animation-form" method="dialog">
+        <div class="storage-modal__header">
+            <h2 class="storage-modal__title" id="save-animation-title">Save animation</h2>
+            <button class="storage-modal__close" type="button" data-close-modal aria-label="Close save animation dialog">×</button>
+        </div>
+        <label class="storage-modal__field">
+            <span>Name</span>
+            <input class="storage-modal__input" id="save-animation-name" type="text" maxlength="80" required>
+        </label>
+        <div class="storage-modal__actions">
+            <button class="storage-modal__button storage-modal__button--secondary" type="button" data-close-modal>Cancel</button>
+            <button class="storage-modal__button" type="submit">Save</button>
+        </div>
+    </form>
+</dialog>
+<dialog class="storage-modal storage-modal--wide" id="load-animation-modal" aria-labelledby="load-animation-title">
+    <form class="storage-modal__content" method="dialog">
+        <div class="storage-modal__header">
+            <h2 class="storage-modal__title" id="load-animation-title">Load animation</h2>
+            <button class="storage-modal__close" type="button" data-close-modal aria-label="Close load animation dialog">×</button>
+        </div>
+        <div class="storage-modal__list" id="saved-animation-list"></div>
+        <div class="storage-modal__actions">
+            <button class="storage-modal__button storage-modal__button--secondary" type="button" data-close-modal>Close</button>
+        </div>
+    </form>
+</dialog>
 <div class="xr-panel" id="xr-panel">
     <div class="xr-panel__actions">
         <button class="xr-button" id="xr-button" type="button" disabled>Enter VR</button>
