@@ -17,6 +17,13 @@ let MAX_LAYERS = 128,
     overlayContext,
     directionVectors = new Float32Array(MAX_LAYERS * 2),
     randomAngles = [],
+    customAngles = [],
+    customAngleCanvas,
+    customAngleContext,
+    customAngleDialog,
+    customAngleDragIndex = -1,
+    customAngleEditorPending = false,
+    initialSyncPending = true,
     xrSession = null,
     xrReferenceSpace = null,
     xrSelectedControl = 0,
@@ -52,7 +59,7 @@ let controlParamDefs = [
     { key: 'tempo', min: 0.01, max: 0.5, step: 0.01, decimals: 2 },
     { key: 'dimPix', min: 0.05, max: 2, step: 0.05, decimals: 2 },
     { key: 'coloring', values: ['Grayscale', 'Spectrum'] },
-    { key: 'angleMode', values: ['Evenly Spaced', 'Random'] },
+    { key: 'angleMode', values: ['Evenly Spaced', 'Random', 'Custom'] },
     { key: 'quality', min: 0.5, max: 1, step: 0.05, decimals: 2 },
     { key: 'distance', min: 1.2, max: 4.5, step: 0.1, decimals: 1 },
     { key: 'scale', min: 1.4, max: 5, step: 0.1, decimals: 1 }
@@ -69,6 +76,7 @@ let xrControlDefs = [
 ];
 
 let previousAngleMode = controls.angleMode;
+let previousLayerCount = controls.layers;
 
 let IDENTITY_MATRIX = new Float32Array([
     1, 0, 0, 0,
@@ -119,6 +127,7 @@ async function init() {
     setupXROverlay();
     applyControlQueryParameters();
     setupGui();
+    setupCustomAngleEditor();
     setupPhotosensitiveWarning();
     setupXR();
     syncParameters();
@@ -159,6 +168,11 @@ function acceptPhotosensitiveWarning() {
 
     if (paused) {
         togglePaused();
+    }
+
+    if (customAngleEditorPending && controls.angleMode === 'Custom') {
+        customAngleEditorPending = false;
+        openCustomAngleEditor();
     }
 }
 
@@ -292,7 +306,7 @@ function setupGui() {
     guiControllers.push(gui.add(controls, 'tempo', 0.01, 0.5, 0.01).name('Tempo').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'dimPix', 0.05, 2.0, 0.05).name('Pattern Density').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'coloring', ['Grayscale', 'Spectrum']).name('Palette').onChange(syncParameters));
-    guiControllers.push(gui.add(controls, 'angleMode', ['Evenly Spaced', 'Random']).name('Angle Mode').onChange(syncParameters));
+    guiControllers.push(gui.add(controls, 'angleMode', ['Evenly Spaced', 'Random', 'Custom']).name('Angle Mode').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'quality', 0.5, 1.0, 0.05).name('Render Scale').onChange(syncParameters));
     pauseButtonController = gui.add(linkActions, 'togglePaused').name('Pause');
     updatePauseButtonLabel();
@@ -304,6 +318,26 @@ function setupGui() {
         referencesPanel.classList.add('is-mounted');
         gui.domElement.appendChild(referencesPanel);
     }
+}
+
+function setupCustomAngleEditor() {
+    customAngleDialog = document.getElementById('custom-angle-modal');
+    customAngleCanvas = document.getElementById('custom-angle-canvas');
+
+    if (!customAngleDialog || !customAngleCanvas) {
+        return;
+    }
+
+    customAngleContext = customAngleCanvas.getContext('2d');
+    customAngleCanvas.addEventListener('pointerdown', startCustomAngleDrag);
+    customAngleCanvas.addEventListener('pointermove', moveCustomAngleDrag);
+    customAngleCanvas.addEventListener('pointerup', endCustomAngleDrag);
+    customAngleCanvas.addEventListener('pointercancel', endCustomAngleDrag);
+    customAngleCanvas.addEventListener('lostpointercapture', endCustomAngleDrag);
+    customAngleDialog.addEventListener('close', function () {
+        customAngleDragIndex = -1;
+    });
+    drawCustomAngleEditor();
 }
 
 function setupXR() {
@@ -346,6 +380,26 @@ function applyControlQueryParameters() {
         if (parsedValue !== null) {
             controls[definition.key] = parsedValue;
         }
+    }
+
+    applyAngleQueryParameters(params);
+}
+
+function applyAngleQueryParameters(params) {
+    if (!params.has('angles')) {
+        return;
+    }
+
+    let parsedAngles = parseAngleList(params.get('angles'));
+
+    if (parsedAngles.length < controls.layers) {
+        return;
+    }
+
+    if (controls.angleMode === 'Random') {
+        randomAngles = parsedAngles.slice(0, MAX_LAYERS);
+    } else if (controls.angleMode === 'Custom') {
+        customAngles = parsedAngles.slice(0, controls.layers);
     }
 }
 
@@ -393,7 +447,48 @@ function buildControlUrl() {
         url.searchParams.set(definition.key, value);
     }
 
+    if (controls.angleMode === 'Random') {
+        ensureRandomAngles();
+        url.searchParams.set('angles', formatAngleList(randomAngles, controls.layers));
+    } else if (controls.angleMode === 'Custom') {
+        ensureCustomAngles();
+        url.searchParams.set('angles', formatAngleList(customAngles, controls.layers));
+    } else {
+        url.searchParams.delete('angles');
+    }
+
     return url.toString();
+}
+
+function parseAngleList(rawValue) {
+    if (!rawValue || rawValue.trim() === '') {
+        return [];
+    }
+
+    let parts = rawValue.split(',');
+    let angles = [];
+
+    for (let i = 0; i < parts.length && i < MAX_LAYERS; i++) {
+        let value = Number(parts[i]);
+
+        if (!Number.isFinite(value)) {
+            return [];
+        }
+
+        angles.push(normalizeLineAngle(value));
+    }
+
+    return angles;
+}
+
+function formatAngleList(angles, count) {
+    let formatted = [];
+
+    for (let i = 0; i < count; i++) {
+        formatted.push(normalizeLineAngle(angles[i] || 0).toFixed(6));
+    }
+
+    return formatted.join(',');
 }
 
 function formatControlParam(definition, value) {
@@ -453,21 +548,47 @@ function updatePauseButtonLabel() {
 }
 
 function syncParameters() {
+    let layerCountChanged = controls.layers !== previousLayerCount;
+    let shouldOpenCustomEditor = !initialSyncPending;
+
+    if (!initialSyncPending && layerCountChanged && controls.angleMode === 'Custom') {
+        controls.angleMode = 'Evenly Spaced';
+        closeCustomAngleEditor();
+        refreshGui();
+    }
+
     layers = controls.layers;
     tempoFactor = controls.tempo;
     dimPix = controls.dimPix;
     coloring = controls.coloring === 'Spectrum' ? 2 : 1;
 
     if (controls.angleMode !== previousAngleMode) {
+        if (controls.angleMode === 'Custom') {
+            if (customAngles.length !== controls.layers) {
+                initializeCustomAngles(previousAngleMode);
+            }
+
+            if (shouldOpenCustomEditor) {
+                openCustomAngleEditor();
+            }
+        }
+
         previousAngleMode = controls.angleMode;
 
         if (controls.angleMode === 'Random') {
-            rebuildRandomAngles();
+            if (shouldOpenCustomEditor || randomAngles.length < controls.layers) {
+                rebuildRandomAngles();
+            } else {
+                ensureRandomAngles();
+            }
         }
     }
 
     rebuildLayerDirections();
+    previousLayerCount = controls.layers;
+    initialSyncPending = false;
     overlayDirty = true;
+    drawCustomAngleEditor();
     resizeRenderer();
 }
 
@@ -531,16 +652,245 @@ function rebuildRandomAngles() {
     }
 }
 
-function rebuildLayerDirections() {
-    let orientationDelta = Math.PI / layers;
+function ensureRandomAngles() {
+    for (let i = randomAngles.length; i < MAX_LAYERS; i++) {
+        randomAngles.push(Math.random() * Math.PI);
+    }
+}
 
-    if (controls.angleMode === 'Random' && randomAngles.length < MAX_LAYERS) {
-        rebuildRandomAngles();
+function initializeCustomAngles(sourceMode) {
+    let sourceAngles = [];
+
+    if (sourceMode === 'Random') {
+        ensureRandomAngles();
+    }
+
+    for (let i = 0; i < controls.layers; i++) {
+        sourceAngles.push(getLayerAngle(i, sourceMode));
+    }
+
+    customAngles = sourceAngles;
+}
+
+function ensureCustomAngles() {
+    if (customAngles.length === controls.layers) {
+        return;
+    }
+
+    initializeCustomAngles('Evenly Spaced');
+}
+
+function openCustomAngleEditor() {
+    if (!customAngleDialog) {
+        return;
+    }
+
+    drawCustomAngleEditor();
+
+    if (customAngleDialog.open) {
+        return;
+    }
+
+    if (customAngleDialog.showModal) {
+        try {
+            customAngleDialog.showModal();
+            customAngleEditorPending = false;
+            return;
+        } catch (error) {
+            customAngleEditorPending = true;
+            return;
+        }
+    }
+
+    customAngleDialog.setAttribute('open', '');
+    customAngleEditorPending = false;
+}
+
+function closeCustomAngleEditor() {
+    customAngleEditorPending = false;
+    customAngleDragIndex = -1;
+
+    if (!customAngleDialog || !customAngleDialog.open) {
+        return;
+    }
+
+    if (customAngleDialog.close) {
+        customAngleDialog.close();
+    } else {
+        customAngleDialog.removeAttribute('open');
+    }
+}
+
+function drawCustomAngleEditor() {
+    if (!customAngleContext || !customAngleCanvas) {
+        return;
+    }
+
+    let context = customAngleContext;
+    let width = customAngleCanvas.width;
+    let height = customAngleCanvas.height;
+    let centerX = width / 2;
+    let centerY = height / 2;
+    let radius = Math.min(width, height) * 0.38;
+
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    context.fillRect(0, 0, width, height);
+
+    context.strokeStyle = 'rgba(226, 232, 240, 0.72)';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    context.stroke();
+
+    context.strokeStyle = 'rgba(148, 163, 184, 0.24)';
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(centerX - radius - 18, centerY);
+    context.lineTo(centerX + radius + 18, centerY);
+    context.moveTo(centerX, centerY - radius - 18);
+    context.lineTo(centerX, centerY + radius + 18);
+    context.stroke();
+
+    if (controls.angleMode !== 'Custom') {
+        return;
+    }
+
+    ensureCustomAngles();
+
+    for (let i = 0; i < controls.layers; i++) {
+        let angle = customAngles[i];
+        let lineRadius = radius + (i === customAngleDragIndex ? 16 : 4);
+        let x = Math.cos(angle) * lineRadius;
+        let y = Math.sin(angle) * lineRadius;
+
+        context.strokeStyle = getCustomAngleColor(i, i === customAngleDragIndex ? 0.98 : 0.72);
+        context.lineWidth = i === customAngleDragIndex ? 4 : 2;
+        context.beginPath();
+        context.moveTo(centerX - x, centerY - y);
+        context.lineTo(centerX + x, centerY + y);
+        context.stroke();
+
+        context.fillStyle = getCustomAngleColor(i, 0.95);
+        context.beginPath();
+        context.arc(centerX + x, centerY + y, i === customAngleDragIndex ? 7 : 5, 0, Math.PI * 2);
+        context.fill();
+    }
+}
+
+function getCustomAngleColor(index, alpha) {
+    let hue = Math.round((index * 137.508) % 360);
+
+    return 'hsla(' + hue + ', 84%, 66%, ' + alpha + ')';
+}
+
+function startCustomAngleDrag(event) {
+    if (controls.angleMode !== 'Custom') {
+        return;
+    }
+
+    customAngleDragIndex = getNearestCustomAngleIndex(event);
+
+    if (customAngleDragIndex === -1) {
+        return;
+    }
+
+    customAngleCanvas.setPointerCapture(event.pointerId);
+    updateDraggedCustomAngle(event);
+}
+
+function moveCustomAngleDrag(event) {
+    if (customAngleDragIndex === -1) {
+        return;
+    }
+
+    updateDraggedCustomAngle(event);
+}
+
+function endCustomAngleDrag() {
+    customAngleDragIndex = -1;
+    drawCustomAngleEditor();
+}
+
+function updateDraggedCustomAngle(event) {
+    let point = getCustomAngleCanvasPoint(event);
+    let angle = Math.atan2(point.y - customAngleCanvas.height / 2, point.x - customAngleCanvas.width / 2);
+
+    customAngles[customAngleDragIndex] = normalizeLineAngle(angle);
+    rebuildLayerDirections();
+    overlayDirty = true;
+    drawCustomAngleEditor();
+
+    if (paused && !xrSession) {
+        drawPausedDesktopFrame();
+    }
+}
+
+function getNearestCustomAngleIndex(event) {
+    let point = getCustomAngleCanvasPoint(event);
+    let angle = normalizeLineAngle(Math.atan2(point.y - customAngleCanvas.height / 2, point.x - customAngleCanvas.width / 2));
+    let nearestIndex = -1;
+    let nearestDistance = Infinity;
+
+    ensureCustomAngles();
+
+    for (let i = 0; i < controls.layers; i++) {
+        let distance = getLineAngleDistance(angle, customAngles[i]);
+
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestIndex = i;
+        }
+    }
+
+    return nearestIndex;
+}
+
+function getCustomAngleCanvasPoint(event) {
+    let rect = customAngleCanvas.getBoundingClientRect();
+
+    return {
+        x: (event.clientX - rect.left) * customAngleCanvas.width / rect.width,
+        y: (event.clientY - rect.top) * customAngleCanvas.height / rect.height
+    };
+}
+
+function normalizeLineAngle(angle) {
+    let normalized = angle % Math.PI;
+
+    return normalized < 0 ? normalized + Math.PI : normalized;
+}
+
+function getLineAngleDistance(a, b) {
+    let distance = Math.abs(normalizeLineAngle(a) - normalizeLineAngle(b));
+
+    return Math.min(distance, Math.PI - distance);
+}
+
+function getLayerAngle(index, mode) {
+    if (mode === 'Random') {
+        ensureRandomAngles();
+        return randomAngles[index] || 0;
+    }
+
+    if (mode === 'Custom') {
+        ensureCustomAngles();
+        return customAngles[index] || 0;
+    }
+
+    return index * Math.PI / controls.layers;
+}
+
+function rebuildLayerDirections() {
+    if (controls.angleMode === 'Random') {
+        ensureRandomAngles();
+    } else if (controls.angleMode === 'Custom') {
+        ensureCustomAngles();
     }
 
     for (let i = 0; i < MAX_LAYERS; i++) {
         if (i < layers) {
-            let orientation = controls.angleMode === 'Random' ? randomAngles[i] : i * orientationDelta;
+            let orientation = getLayerAngle(i, controls.angleMode);
 
             directionVectors[i * 2] = Math.cos(orientation);
             directionVectors[i * 2 + 1] = Math.sin(orientation);
@@ -652,6 +1002,14 @@ async function closeXRPanel() {
 }
 
 async function startXRSession(session) {
+    if (controls.angleMode === 'Custom') {
+        controls.angleMode = 'Evenly Spaced';
+        previousAngleMode = controls.angleMode;
+        closeCustomAngleEditor();
+        refreshGui();
+        rebuildLayerDirections();
+    }
+
     xrSession = session;
     stopDesktopLoop();
     setStatus('WebXR session running');

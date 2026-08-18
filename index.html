@@ -4,9 +4,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="Kwazikryształy quasicrystals">
     <meta name="author" content="r34117y">
-    <link rel="stylesheet" href="css/quasicrystals.css?v=20260815">
+    <link rel="stylesheet" href="css/quasicrystals.css?v=20260818-custom-angles">
     <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.20/dist/lil-gui.umd.min.js"></script>
-    <script src="js/quasicrystals.js?v=20260815-photosensitive-warning" defer></script>
+    <script src="js/quasicrystals.js?v=20260818-custom-angles" defer></script>
     <title>Hypnagogic Quasicrystals</title>
 </head>
 <body>
@@ -26,6 +26,24 @@
             medical professional.
         </p>
         <button class="warning-modal__button" id="photosensitive-warning-button" type="button">I understand</button>
+    </form>
+</dialog>
+<dialog class="custom-angle-modal" id="custom-angle-modal" aria-labelledby="custom-angle-title">
+    <form class="custom-angle-modal__content" method="dialog">
+        <div class="custom-angle-modal__header">
+            <h2 class="custom-angle-modal__title" id="custom-angle-title">Custom angles</h2>
+            <button class="custom-angle-modal__close" type="submit" aria-label="Close custom angle editor">×</button>
+        </div>
+        <canvas
+            class="custom-angle-modal__canvas"
+            id="custom-angle-canvas"
+            width="520"
+            height="520"
+            aria-label="Drag a layer line to adjust its angle"
+        ></canvas>
+        <div class="custom-angle-modal__actions">
+            <button class="custom-angle-modal__button" type="submit">Done</button>
+        </div>
     </form>
 </dialog>
 <div class="xr-panel" id="xr-panel">
