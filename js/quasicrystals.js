@@ -54,11 +54,13 @@ let MAX_LAYERS = 128,
         scale: 2.8
     };
 
+let colorPalettes = ['Grayscale', 'Spectrum', 'Viridis', 'Plasma', 'Cividis', 'Turbo', 'Magma'];
+
 let controlParamDefs = [
     { key: 'layers', min: 1, max: 100, step: 1, decimals: 0 },
     { key: 'tempo', min: 0.01, max: 0.5, step: 0.01, decimals: 2 },
     { key: 'dimPix', min: 0.05, max: 2, step: 0.05, decimals: 2 },
-    { key: 'coloring', values: ['Grayscale', 'Spectrum'] },
+    { key: 'coloring', values: colorPalettes },
     { key: 'angleMode', values: ['Evenly Spaced', 'Random', 'Custom'] },
     { key: 'quality', min: 0.5, max: 1, step: 0.05, decimals: 2 },
     { key: 'distance', min: 1.2, max: 4.5, step: 0.1, decimals: 1 },
@@ -69,7 +71,7 @@ let xrControlDefs = [
     { key: 'layers', label: 'Layers', min: 1, max: 100, step: 1, decimals: 0 },
     { key: 'tempo', label: 'Tempo', min: 0.01, max: 0.5, step: 0.01, decimals: 2 },
     { key: 'dimPix', label: 'Density', min: 0.05, max: 2, step: 0.05, decimals: 2 },
-    { key: 'coloring', label: 'Palette', values: ['Grayscale', 'Spectrum'] },
+    { key: 'coloring', label: 'Palette', values: colorPalettes },
     { key: 'angleMode', label: 'Angles', values: ['Evenly Spaced', 'Random'] },
     { key: 'distance', label: 'Distance', min: 1.2, max: 4.5, step: 0.1, decimals: 1 },
     { key: 'scale', label: 'Scale', min: 1.4, max: 5, step: 0.1, decimals: 1 }
@@ -305,7 +307,7 @@ function setupGui() {
     guiControllers.push(gui.add(controls, 'layers', 1, 100, 1).name('Layers').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'tempo', 0.01, 0.5, 0.01).name('Tempo').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'dimPix', 0.05, 2.0, 0.05).name('Pattern Density').onChange(syncParameters));
-    guiControllers.push(gui.add(controls, 'coloring', ['Grayscale', 'Spectrum']).name('Palette').onChange(syncParameters));
+    guiControllers.push(gui.add(controls, 'coloring', colorPalettes).name('Palette').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'angleMode', ['Evenly Spaced', 'Random', 'Custom']).name('Angle Mode').onChange(syncParameters));
     guiControllers.push(gui.add(controls, 'quality', 0.5, 1.0, 0.05).name('Render Scale').onChange(syncParameters));
     pauseButtonController = gui.add(linkActions, 'togglePaused').name('Pause');
@@ -560,7 +562,7 @@ function syncParameters() {
     layers = controls.layers;
     tempoFactor = controls.tempo;
     dimPix = controls.dimPix;
-    coloring = controls.coloring === 'Spectrum' ? 2 : 1;
+    coloring = Math.max(1, colorPalettes.indexOf(controls.coloring) + 1);
 
     if (controls.angleMode !== previousAngleMode) {
         if (controls.angleMode === 'Custom') {
